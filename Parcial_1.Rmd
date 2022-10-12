@@ -266,6 +266,9 @@ Q1 <- (Na-d-1)*sum(Rho_residuales^2)
 Q1
 ```
 
+
+
+
 *Estadístico Q’ de Ljung-Box (1978)*
 $$
 Q=(N-d-1)*(N-d+1)\sum_{k=1}^{[\dfrac{N}{4}]}\dfrac{\hat{\rho_k}(\hat{a}))^2}{N-d+1-k}
@@ -278,6 +281,18 @@ for(i in 1:(N/4)){
 
 Q2
 ```
+```{r}
+K <- N/4
+Qprima<-matrix(data=NA,nrow=K+1,ncol=1)
+for(k in 0:K){
+  Qprima[k+1]<-(Na-d-1)*(Na-d+1)*sum((Rho_residuales^2)/(N-d-1-k))
+}
+#mean(Qprima)
+
+Valorcrític<-qchisq(p=0.95,(Na/4-1))
+
+```
+
 
 $H_0:$ los residuales estimados $\hat{a}$ˆ son ruido blanco,.
 $H_a:$ los residuales estimados $\hat{a}$ˆ no son ruido blanco.
