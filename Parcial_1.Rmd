@@ -1,0 +1,312 @@
+---
+title: "R Notebook"
+output: none
+---
+
+
+
+
+
+lIBRERIAS
+```{r}
+library(ggplot2)
+library(ggthemes)
+```
+
+
+
+# Punto 1
+Presente un código que: Fije una semilla. Cree un vector llamado a con N = 511 valores aleatorios simulados a partir de una distribución normal estandar.
+```{r}
+set.seed(123)
+a <- rnorm(n=511)
+```
+
+Presente un código que: Cree un vector con los valores del proceso
+
+$$
+Z_t =-0.2Z_{t−1} −0.01Z_{t−2} +0.01\tilde{Z}_{t−3} + 10 + a_t,\ \ \ \ t=1,2,3,...,N.\\
+Z_1 = 0\\ Z_2 = 1 \\ a_t =perturbación
+$$
+
+Teniendo lo valores iniciales se generan los datos realizando un reescalamiento del modelo a $\tilde{Z}$
+donde:
+
+Teniendo lo valores iniciales se generan los datos realizando un reescalamiento del modelo a $\tilde{Z}$
+donde:
+$$
+\tilde{Z}_t =-0.2\tilde{Z}_{t−1} -0.01\tilde{Z}_{t−2} +0.01\tilde{Z}_{t−3} + a_t,\\
+P.C=1+0.2B+0.01B^2-0.01B^3\\
+E.C=1+0.2B+0.01B^2-0.01B^3=0
+$$
+
+```{r}
+
+N <- length(a)
+phi1 <- -0.5   #-0.2
+phi2 <- 0.0325      #-0.01
+phi3 <- 0.0382            #0.01
+m <- 50/(1-phi1-phi2-phi3)
+Z <- matrix(data = NA,nrow = N,ncol = 1)
+Z[1] <-  0  # 0
+Z[2] <-  -2  #1
+Z[3] <-  3  #2
+for(i in 4:N){
+  Z[i] <- phi1*(Z[i-1]-m)+phi2*(Z[i-2]-m) +phi3*(Z[i-3]-m) +a[i]#SE ELIMINA CONTSTANTE
+  #Z[i] <- phi1*(Z[i-1])+phi2*(Z[i-2])+phi3*(Z[i-3]) +a[i]
+}
+Z[200]
+head(Z)
+tail(Z)
+mean(Z) #media
+
+```
+
+
+# punto2 Grafica
+
+
+
+```{r}
+Z1<- Z[-c(1:3)]
+y <- c(1:508)
+
+Z1 <- as.data.frame(cbind(y,Z1))
+```
+
+
+```{r}
+ggplot(Z1) +
+geom_line(aes(y=Z1,x=y), colour= "blue",size=1) +
+ggtitle("                     Serie Proceso Generador AR3") +
+geom_text(x=mean(Z1$Z)+270, y=13.5, label=paste("mean=",round(mean(Z1$Z),1)))+ 
+labs(x="Periodo de Tiempo",y="Values" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+```{r}
+ggplot(data = as.data.frame(Z1))+
+  geom_histogram(mapping = aes(x=Z1),bins=30, color="black", fill="#00bc59")+
+  geom_vline(aes(xintercept=mean(Z1)),linetype="dashed",color="black")+
+  geom_text(x=mean(Z1$Z)+1, y=40, label=paste("mean=",round(mean(Z1$Z),1)))+ 
+  geom_text(x=12,y=30,label=paste("SD=",round(sd(Z1$Z),2)))+
+  ggtitle("Histograma de la serie generada AR(3)", subtitle="Proceso Estacionario") +
+  labs(x="Valores",y="Concentración" )+
+   theme(plot.title = element_text(hjust = 0.5,size=20))+ 
+   theme(plot.subtitle = element_text(hjust = 0.5,size=12,color="blue"))+
+   theme(axis.text.x =  element_text(hjust = 0.5,size=12,color="blue"))+
+   theme(axis.text.y =  element_text(hjust = 0.5,size=12,color="blue"))+
+   theme(axis.title.x =  element_text(hjust = 0.5,size=15,color="navy"))+
+   theme(axis.title.y =  element_text(hjust = 0.5,size=15,color="navy"))
+```
+
+
+
+
+
+
+
+
+
+
+
+# Punto3 Procesos Teoricos AR3
+
+```{r}
+# importacion de la funcion AR3 construida para calcular cualquier escenario
+source("~/Documents/GitHub/Macroeconometria/2022-2/Funciones/AR3.R")
+```
+
+## ACF y PACF Teorica
+```{r,warning=FALSE}
+#AR3(0.5,0.0525,0.0582,6)
+AR3(-0.5,0.0325,0.0382,6) # revisar factores parte imaginaria
+```
+
+
+# Punto 4
+##ACF Muestral
+
+```{r}
+source("~/Documents/GitHub/Macroeconometria/2022-2/Funciones/ACFfun0.R")
+```
+
+
+```{r}
+ACF <- ACFfun0(Z,N/4)
+#plot(ACF,type = "h" )
+acf(Z,plot = FALSE)
+```
+
+
+
+```{r}
+source("~/Documents/GitHub/Macroeconometria/2022-2/Funciones/PACFfun.R")
+```
+
+
+## PACF Muestral
+
+```{r}
+PACF <- PACFfun(ACF,N/4)
+pacf(Z,plot = TRUE)
+```
+# Punto 5 Identifiación orden P
+Para encontrar el p nos apoyaremos en los intervalos de confianza para ello usaremos el comando(qnorm) del paquete Normal stats que calcula los cuantiles de una distribucion normal
+
+para expandir la explicacion de los cuantiles lo graficaremos con ayuda del paquete tigerstats y el comando pnormGC
+
+```{r}
+quantil <- qnorm(0.975,mean=0,sd=1)
+quantil <- round(quantil,2) #redondeamos el valor a 1.96
+require(tigerstats)
+pnormGC(c(-quantil,quantil),region="between",mean=0,
+        sd=1,graph=TRUE)
+```
+con lo anterior crearemos los intervalos con una confianza del 95 sobre la grafica de las Autocorrelaciones Parciales
+```{r}
+
+lim_inf <- -quantil*sqrt(1/N)
+lim_sup <- quantil*sqrt(1/N)
+
+plot(PACF,type = 'h',ylim = c(-0.16, 0.20))
+abline(h=lim_sup, col="red")
+abline(h=lim_inf, col="red")
+```
+
+```{r}
+
+y <- 1:127
+PACF1 <- as.data.frame(cbind(y,PACF))
+ggplot(PACF1) +
+geom_col(aes(y=PACF,x=y), colour= "blue",size=0.4) +
+geom_hline(aes(yintercept=lim_sup),linetype="dashed",color="black")+
+geom_hline(aes(yintercept=lim_inf),linetype="dashed",color="black")+
+ggtitle("                     PACF Proceso Generador AR3") +
+labs(x="Periodo de Tiempo",y="Values" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+Como se puede evidenciar en la grafica los unicos valores que no son 0 estadisticamente hablando son los primeros dos valores 
+
+```{r}
+H <- length(PACF)
+
+valor_p <- cbind()
+for(p in 1:H){
+  for(i in (p+1):H){
+    if(PACF[p]>lim_inf&PACF[p]<lim_sup){
+      valor_p[i] <- "dentro del intervalo"
+    }
+    else{
+      valor_p[i] <- "fuera del intervalo"
+    }
+  }
+}
+print(cbind(valor_p))
+```
+
+
+#### intento while
+```{r}
+H <- length(PACF)
+
+contador <- 0
+valor_p <- cbind()
+for(p in 1:H){
+  for(i in (p+1):H){
+    if(PACF[p]>lim_sup&PACF[p]<lim_inf){
+      valor_p[i] <- "dentro del intervalo"
+    }
+    else{
+      valor_p[i] <- "fuera del intervalo"
+    }
+
+  }
+}
+print(cbind(valor_p))
+
+
+
+
+```
+
+
+
+
+
+# punto 6
+
+Aplicacion de la función arima()
+```{r}
+modelillo <- arima(Z, c(3,0,0))
+residualcitos <- modelillo$residuals
+```
+
+
+```{r}
+par(mfrow=c(1,2))
+acf(residualcitos,lag.max = (N/4))
+Rho_residuales <- ACFfun00(residualcitos,(N/4))
+abline(h=lim_sup, col="red")
+abline(h=lim_inf, col="red")
+```
+
+
+
+*Estadístico Q de Box- Pierce (1970) *
+$$
+Q=(N-d-1)\sum_{k=1}^{[\dfrac{N}{4}]}(\hat{\rho_k}(\hat{a}))^2
+$$
+
+```{r}
+Na <- length(residualcitos)
+d <- 0
+Q1 <- (Na-d-1)*sum(Rho_residuales^2)
+Q1
+```
+
+*Estadístico Q’ de Ljung-Box (1978)*
+$$
+Q=(N-d-1)*(N-d+1)\sum_{k=1}^{[\dfrac{N}{4}]}\dfrac{\hat{\rho_k}(\hat{a}))^2}{N-d+1-k}
+$$
+
+```{r}
+for(i in 1:(N/4)){
+  Q2 <- (Na-d-1)*(Na-d+1)*(sum(Rho_residuales**2))/(Na-d-1-i)
+}
+
+Q2
+```
+
+$H_0:$ los residuales estimados $\hat{a}$ˆ son ruido blanco,.
+$H_a:$ los residuales estimados $\hat{a}$ˆ no son ruido blanco.
+
+```{r}
+k <- (N/4)
+ValorCritico <- qchisq(p = 0.95,df = k-1,FALSE)
+if( ValorCritico >Q2 ) {
+  "no se rechaza la hipotesis nula"
+} else {
+  "se rechaza la hipotesis nula"
+}
+
+```
+por lo que se concluye que los datos no son independientes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
