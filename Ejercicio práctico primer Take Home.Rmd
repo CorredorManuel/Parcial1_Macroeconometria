@@ -1,0 +1,373 @@
+---
+title: "Ejercicio práctico Take Home 1"
+author: "Manuel Camilo Corredor y Gabriela Narváez"
+date: '2022-10-10'
+output: html_document
+---
+
+**Introducción con una presentación de la serie (unidad de medición, periodicidad, fuente de los datos, estadística descriptiva, hechos históricos relevantes. Los gráficos presentados deben tener etiquetas de tiempo en el eje horizontal).**
+
+El Índice de Producción Real de la Industria Manufacturera Colombiana tiene el objetivo de estimar la evolución del sector industrial en Colombia en el corto plazo, a partir de la observación de la variable
+
+```{r}
+library(readxl)
+srea_027 <- read_excel("srea_027.xls", 
+    sheet = "Hoja1", col_types = c("date", 
+        "numeric"))
+View(srea_027)
+Mes<-srea_027$Mes
+TotalIndustria<-srea_027$`Total industria`
+```
+
+
+```{r}
+ggplot(srea_027) +
+geom_line(aes(y=TotalIndustria,x=Mes), colour= "blue",size=1) +
+ggtitle("Índice de Producción Real de la Industria Manufacturera") +
+labs(x="Periodo de Tiempo",y="Values" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+**Desestacionalización de la serie.**
+Para desestacionalizar la serie, es necesario hallar los promedios de los datos de cada mes y restárselos a los datos de cada mes respectivamente. Para ello se realizará el cálculo de la media móvil con ventana 12. Eliminaremos los datos del 2022 porque están incompletos, para que todas las medias se saquen con el mismo procedimiento.
+
+```{r}
+N<-length(Mes)
+N
+
+MatrizIndustria <- matrix(data=TotalIndustria[1:N],nrow=12,ncol=22,byrow=F)
+#View(MatrizIndustria)
+
+MediaMóvil<-c()
+for(i in 1:12){
+  MediaMóvil[i] <- mean(MatrizIndustria[i,])
+}
+
+MediaMóvil
+```
+
+
+
+# a
+Ahora procedemos a restar las medias a cada dato dependiendo del mes al que corresponda.
+
+```{r}
+SerieDesestacionalizada<-matrix(data=NA,nrow=12,ncol=22,byrow=T)
+for(i in 1:22){
+  for(j in 1:12){
+    SerieDesestacionalizada[j,i]<- MatrizIndustria[j,i] - MediaMóvil[j]
+  }
+}
+revisarya <- c(SerieDesestacionalizada)
+min(SerieDesestacionalizada)
+
+SerieDesestacionalizada <- SerieDesestacionalizada+45
+```
+
+
+
+```{r}
+seriede<- c(SerieDesestacionalizada)
+serieDes <- as.data.frame(seriede)
+
+ggplot(serieDes) +
+geom_line(aes(y=seriede,x=Mes), colour= "blue",size=1) +
+ggtitle("Índice de Producción Real de la Industria Manufacturera", subtitle="Serie Desestacionalizada") +
+labs(x="Periodo de Tiempo",y="Values" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+
+**Estabilización de varianza.**
+
+Con el fin de estabilizar la varianza de una serie $Z_{t}$ se elige la potencia $\lambda$ de tal forma que se cumpla la siguiente relación:
+
+$$
+\dfrac{\sigma_{t}}{\mu_{t}^{1-\lambda}}= \mbox{constante}, \qquad{\forall t=1,2,\dots, T}
+$$
+
+```{r}
+G<-12 #Número de observaciones por grupo
+H<-floor(N/G) #Número de grupos
+H
+n<-N-H*G #Número de observaciones que se eliminarán de la serie
+n
+```
+
+Cada grupo tendrá una media dada por
+
+$$
+\bar{Z_{h}}=\dfrac{\sum_{g=1}^{G}Z_{h,g}}{G},
+$$
+
+```{r}
+mediasgrupos<-matrix(NA,nrow=H,ncol=1)#Creamos matriz vacía
+for(h in 1:H){
+  mediasgrupos[h]<-(sum(SerieDesestacionalizada[,h]))/G #Media de cada grupo
+}
+head(mediasgrupos)
+```
+
+
+
+
+
+
+
+
+La desviación estándar de cada grupo se calcula: 
+$$
+S_{h}=\sqrt{\dfrac{\sum_{g=1}^{G}\left(Z_{h,g}-\bar{Z}_{h}\right)^{2}}{G-1}}
+$$
+
+```{r}
+sdgrupos<-matrix(NA,nrow=H,ncol=1)#Creamos la matriz vacía
+for(h in 1:H){
+  sdgrupos[h]<-sqrt((sum((SerieDesestacionalizada[,h]-mediasgrupos[h])^2))/(G-1))#Desviación estándar de cada grupo
+}
+sdgrupos
+```
+
+Para un $\lambda$ particular se define su coeficiente de variación 
+$$
+CV(\lambda)=\dfrac{SD(\lambda)}{M(\lambda)}, \mbox{ con } M(\lambda)=\dfrac{\sum_{h=1}^{H}\left(\dfrac{S_{h}}{\bar{Z}_{h}^{1-\lambda}}\right)}{H}, \quad SD(\lambda)=\sqrt{\dfrac{\sum_{h=1}^{H}\left[\left(\dfrac{S_{h}}{\bar{Z}_{h}^{1-\lambda}}\right)- M(\lambda)\right]^{2}}{H-1}}
+$$
+
+Se debe elegir la potencia que proporciona el mínimo coeficiente de variación.
+
+```{r}
+lambdas<-c(-2,-1.5,-1,-0.5,0,0.5,1,1.5,2)
+nlambdas<-length(lambdas)
+numerito<-matrix(data=NA,nrow=nlambdas,ncol=H)
+medialambdas<-matrix(data=NA,nrow=nlambdas,ncol=1)
+sdlambdas<-matrix(data=NA,nrow=nlambdas,ncol=1)
+cvlambdas<-matrix(data=NA,nrow=nlambdas,ncol=1)
+numerito[1,1]<-sdgrupos[1]/(mediasgrupos[1]^(1-lambdas[1]))
+for(h in 1:nlambdas){
+  for(n in 1:H){
+    numerito[h,n] <-sdgrupos[n]/(mediasgrupos[n]^(1-lambdas[h]))
+  }
+ 
+}
+for(n in 1:nlambdas){
+  medialambdas[n]<-sum(numerito[n,])/H
+  sdlambdas[n]<-sqrt((sum((numerito[n,]-medialambdas[n])^2))/(H-1))
+  cvlambdas[n]<-sdlambdas[n]/medialambdas[n]
+}
+cvlambdas
+CVlambdas<-cbind(lambdas,cvlambdas)
+CVlambdas
+```
+
+$$
+G(Z_{t})=\begin{cases}
+Z_{t}^{\lambda} & \lambda \ne 0 \\
+\ln(Z_{t}) & \lambda=0
+\end{cases}
+$$
+
+```{r}
+Transformación <-SerieDesestacionalizada^(0.5) #Serie con la transformación correspondiente aplicada dependiendo del lambda con mínimo coeficiente de variación
+Transf <- matrix(data=Transformación,nrow=264,ncol=1,byrow=T)
+
+plot(Transf,type="l")
+
+```
+
+**Estabilización de nivel.**
+
+$$
+S(d)=min\lbrace S(j),j=0,1,2,3\rbrace\\
+S^2(j)=\dfrac{1}{N-j-1}\sum_{t=j+1}^N \begin{bmatrix} \triangledown^jG(Z_t)-\sum_{t=j+1}^N\dfrac{\triangledown^jG(Z_t)}{N-j}\end{bmatrix}^2
+$$
+
+```{r}
+Resta<-function(seriecita,j){
+  N<-length(seriecita)
+  seriedif<-matrix(data=NA,nrow=(N-j),ncol=1)
+  for(i in 1:(N-j)){
+    seriedif[i]<-seriecita[(i+j)]-seriecita[i]
+  }
+  return(seriedif)
+}
+
+S2j<-c()
+S2j[1]<-sd(Transf)
+for(j in 1:3){
+  S2j[j+1] <-sqrt((1/(N-j-1))*sum((Resta(Transf,j)-sum((Resta(Transf,j))/(N-j)))^2))
+}
+S2j
+seriecita<-Resta(Transf,1)
+
+plot(seriecita,type="l")
+```
+
+
+
+**Identificación del modelo, donde se consideren diferentes modelos a partir de la ACF y la PACF muestral. Inclusión de criterios de información para la identificación es bien valorada.**
+
+*ACF muestral*
+
+La estimación de las autocovarianzas para muestra es la siguiente:
+
+$$
+\hat\gamma_0=\dfrac{\sum^N_{t=1}(\tilde{Z}_t-\bar{Z})^2}{N-1}\\
+\hat\gamma_k=\dfrac{\sum^N_{t=1}(\tilde{Z}_t-\bar{Z})(\tilde{Z}_{t+k}-\bar{Z})}{N-1}
+$$
+
+
+
+
+
+Autocorrelaciones:
+
+$$
+\hat\rho_k=\dfrac{\hat\gamma_k}{\hat\gamma_0}
+$$
+
+
+```{r}
+source("Funciones/ACFfun0.R")
+ACF <- ACFfun0(seriecita, 40)
+head(ACF)
+tail(ACF)
+#acf(seriecita,plot = FALSE)
+```
+
+##### cierre
+Autocorrelaciones parciales:
+
+$$
+\hat\phi_{kk}=\dfrac{\begin{vmatrix}
+1 & \hat\rho_1 & \hat\rho_2 & \cdots & \hat\rho_{k-2}& \hat\rho_1\\
+\hat\rho_1 & 1 & \hat\rho_1 & \cdots & \hat\rho_{k-3} & \hat\rho_2\\
+\hat\rho_2 & \hat\rho_1 & 1 & \cdots & \hat\rho_{k-4} & \hat\rho_3\\
+\vdots & \vdots & \vdots & \ddots& \vdots & \vdots\\
+\vdots & \vdots & \vdots & \vdots & \ddots & \vdots\\
+\hat\rho_{k-1} & \hat\rho_{k-2} & \hat\rho_{k-3} & \cdots & \hat\rho_{1}& \hat\rho_k\\
+\end{vmatrix}}{\begin{vmatrix}
+1 & \hat\rho_1 & \hat\rho_2 & \cdots & \hat\rho_{k-2}& \hat\rho_{k-1}\\
+\hat\rho_1 & 1 & \hat\rho_1 & \cdots & \hat\rho_{k-3} & \hat\rho_{k-2}\\
+\hat\rho_2 & \hat\rho_1 & 1 & \cdots & \hat\rho_{k-4} & \hat\rho_{k-3}\\
+\vdots & \vdots & \vdots & \ddots& \vdots & \vdots\\
+\vdots & \vdots & \vdots & \vdots & \ddots & \vdots\\
+\hat\rho_{k-1} & \hat\rho_{k-2} & \hat\rho_{k-3} & \cdots & \hat\rho_{1}& 1\\
+\end{vmatrix}}
+$$
+
+
+
+```{r}
+source("Funciones/PACFfun.R")
+```
+
+
+## PACF Muestral
+
+```{r}
+PACF <- PACFfun(ACF,40)
+pacf(seriecita,plot = TRUE)
+```
+
+```{r}
+quantil <- qnorm(0.975,mean=0,sd=1)
+quantil <- round(quantil,2) 
+lim_inf <- -quantil*sqrt(1/N)
+lim_sup <- quantil*sqrt(1/N)
+
+plot(PACF,type = 'h',ylim = c(-0.40, 0.20))
+abline(h=lim_sup, col="red")
+abline(h=lim_inf, col="red")
+```
+
+
+```{r}
+H <- length(PACF)
+
+valor_p <- cbind()
+for(p in 1:H){
+  for(i in (p+1):H){
+    if(PACF[p]>lim_inf&PACF[p]<lim_sup){
+      valor_p[i] <- "dentro del intervalo"
+    }
+    else{
+      valor_p[i] <- "fuera del intervalo"
+    }
+  }
+}
+print(cbind(valor_p))
+```
+
+```{r}
+d <- 1
+cota1 <- c()
+for (q in 1:(H-4)) {
+  cota1[q]<- 2* sqrt((1+2*sum(ACF[1:q])^2)/(N-d))
+
+}
+cota1
+```
+
+
+
+```{r}
+abs(ACF)>cota1[9]
+```
+
+
+
+
+```{r}
+quantil <- qnorm(0.975,mean=0,sd=1)
+quantil <- round(quantil,2) 
+lim_inf <- -quantil*sqrt(1/N)
+lim_sup <- quantil*sqrt(1/N)
+
+plot(ACF,type = 'h',ylim = c(-0.60, 1))
+abline(h=lim_sup, col="red")
+abline(h=lim_inf, col="red")
+```
+
+```{r}
+acf(seriecita,lag.max = 67)
+```
+
+
+
+
+
+
+
+```{r}
+modelillo <- arima(seriecita, c(22,0,13))
+residualcitos <- modelillo$residuals
+```
+
+```{r}
+library(forecast)
+auto.arima(seriecita)
+```
+
+
+
+**Estimación y verificación de los supuestos. (Identifique en esta sección cuál es el modelo seleccionado)**
+
+```{r}
+
+```
+
+**Comparación de los valores pronosticados por el modelo dentro de muestra, y los datos observados. (incluya una gráfica con ambas series).**
+
+```{r}
+
+```
+
+**Uso del modelo para hacer pronóstico fuera de muestra (En esta sección se debe comparar los valores pronosticados con valores futuros observados que no hayan sido incluidos en la muestra. Consulte e incluya medidas de precisión del pronóstico).**
+
+```{r}
+
+```
+
+**Referencias.**
+
+*Recuerde adjuntar la serie empleada en el ejercicio. La programación debería ejecutarse sin errores ni intervenciones. En caso de usar librerías auxiliares incluya en linea comentada el comando para instalar dichas librerías. No emplee, de no ser necesario, comandos directos, salvo para confirmación de los cálculos realizados y presentados por ustedes. En cada sección se debe explicar qué es lo que se está haciendo y se deben interpretar los resultados. Nota: en esta sección se espera un documento tipo .Rmd y una base de datos lista para importar.*

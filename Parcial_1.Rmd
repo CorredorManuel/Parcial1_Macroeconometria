@@ -56,6 +56,7 @@ for(i in 4:N){
   #Z[i] <- phi1*(Z[i-1])+phi2*(Z[i-2])+phi3*(Z[i-3]) +a[i]
 }
 Z[200]
+
 head(Z)
 tail(Z)
 mean(Z) #media
@@ -239,20 +240,23 @@ print(cbind(valor_p))
 
 Aplicacion de la función arima()
 ```{r}
-modelillo <- arima(Z, c(3,0,0))
+Z2 <- Z[420:511]
+modelillo <- arima(Z2, c(3,0,0))
 residualcitos <- modelillo$residuals
+
 ```
 
-
+#### eliminar esta parte
 ```{r}
+Na <- length(residualcitos)
 par(mfrow=c(1,2))
-acf(residualcitos,lag.max = (N/4))
-Rho_residuales <- ACFfun00(residualcitos,(N/4))
+acf(residualcitos,lag.max = (Na/4))
+Rho_residuales <- ACFfun00(residualcitos,(Na/4))
 abline(h=lim_sup, col="red")
 abline(h=lim_inf, col="red")
 ```
 
-
+# mantener
 
 *Estadístico Q de Box- Pierce (1970) *
 $$
@@ -275,12 +279,14 @@ Q=(N-d-1)*(N-d+1)\sum_{k=1}^{[\dfrac{N}{4}]}\dfrac{\hat{\rho_k}(\hat{a}))^2}{N-d
 $$
 
 ```{r}
-for(i in 1:(N/4)){
+for(i in 1:(Na/4)){
   Q2 <- (Na-d-1)*(Na-d+1)*(sum(Rho_residuales**2))/(Na-d-1-i)
 }
 
 Q2
 ```
+
+############ eliminar
 ```{r}
 K <- N/4
 Qprima<-matrix(data=NA,nrow=K+1,ncol=1)
@@ -290,7 +296,7 @@ for(k in 0:K){
 #mean(Qprima)
 
 Valorcrític<-qchisq(p=0.95,(Na/4-1))
-
+Valorcrític
 ```
 
 
@@ -300,6 +306,7 @@ $H_a:$ los residuales estimados $\hat{a}$ˆ no son ruido blanco.
 ```{r}
 k <- (N/4)
 ValorCritico <- qchisq(p = 0.95,df = k-1,FALSE)
+ValorCritico
 if( ValorCritico >Q2 ) {
   "no se rechaza la hipotesis nula"
 } else {
