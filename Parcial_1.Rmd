@@ -53,9 +53,7 @@ Z[2] <-  -2  #1
 Z[3] <-  3  #2
 for(i in 4:N){
   Z[i] <- phi1*(Z[i-1]-m)+phi2*(Z[i-2]-m) +phi3*(Z[i-3]-m) +a[i]#SE ELIMINA CONTSTANTE
-  #Z[i] <- phi1*(Z[i-1])+phi2*(Z[i-2])+phi3*(Z[i-3]) +a[i]
 }
-Z[200]
 
 head(Z)
 tail(Z)
