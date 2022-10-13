@@ -15,7 +15,7 @@ library(gridExtra)
 interfaz <- fluidPage(
   
   # Application title
-  titlePanel("titulo de la grafica  Data"),
+  titlePanel("Variables modelo AR(3)"),
   
   # Sidebar with a slider input for number of bins 
   sidebarLayout(
@@ -109,9 +109,6 @@ acfp <-     ggplot(ACF1) +
       ggtitle("                     ACF Proceso Generador AR3") +
       labs(x="Periodo de Tiempo",y="Values" )+
       theme_economist()+theme(axis.text = element_text(angle=0))
-
-
-
 
 grid.arrange(seriep,acfp)
 
