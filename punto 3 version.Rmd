@@ -1,0 +1,663 @@
+---
+title: "Ejercicio práctico Take Home 1"
+author: "Manuel Camilo Corredor y Gabriela Narváez"
+date: '2022-10-10'
+output: html_document
+---
+# Introducción
+**Con una presentación de la serie (unidad de medición, periodicidad, fuente de los datos, estadística descriptiva, hechos históricos relevantes. Los gráficos presentados deben tener etiquetas de tiempo en el eje horizontal).**
+
+El Índice de Producción Real de la Industria Manufacturera Colombiana tiene el objetivo de estimar la evolución del sector industrial en Colombia en el corto plazo, a partir de la observación de la variable de producción real a nivel nacional. La industria incluye los sectores de minas y canterías, manufacturero, electricidad, gas y agua. Como es un índice, está medido en puntos, y se mide mensualmente. Hubo algunos cambios de base en la serie, los cuales fueron: base promedio mes 1990=100 hasta el 2001, del 2002 al 2014 base promedio mes 2014=100, y desde el 2015, la base promedio mes 2018=100.
+Debido a que el sector de producción Manufacturero se vio afectada por el choque exogeno que tuvieron todos lo sectores económicos en el 2020 por el Corona Virus se podrían encontrar algunos incumplimientos de los supuestos sobre los residuales.
+
+
+Para facilitar la lectura de este documentos tenga en cuenta las siguientes recomendaciones:
+Asegurése de tener todas las librerías instaladas indicadas en el documentos para no presentar
+problemas al correr los comandos.
+Nota: Si una librería no le carga, proceda a instalarla mediante el comando install.packages.
+```{r}
+library(ggplot2)
+library(ggthemes)
+library(readxl)
+library(forecast)
+library(moments)
+```
+
+
+**Serie**
+```{r}
+srea_027 <- read_excel("srea_027.xls", 
+    sheet = "Hoja1", col_types = c("date", 
+        "numeric"))
+#View(srea_027)
+Mes<-srea_027$Mes
+TotalIndustria<-srea_027$`Total industria`
+```
+
+# Estadítica descriptiva 
+
+**Gráfica data Importada**
+```{r}
+ggplot(srea_027) +
+geom_line(aes(y=TotalIndustria,x=Mes), colour= "blue",size=1) +
+ggtitle("Índice de Producción Real de la Industria Manufacturera") +
+labs(x="Periodo de Tiempo",y="Values" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+Como se puede evidenciar en la gráfica anterior la serie del Índice de Producción Real de la Industria Manufacturera a través del tiempo ha tenido un comportamiendo ascendente.
+
+```{r,warning=FALSE}
+ggplot(srea_027, aes(x = srea_027$`Total industria`)) +
+geom_histogram(aes(y = ..density..), bins= 30, colour= "black",
+fill = "white") +
+geom_vline(aes(xintercept=mean(`Total industria`)),linetype="dashed",color="navy")+
+geom_text(x=mean(srea_027$`Total industria`)-25, y=0.02, label=paste("media=",round(mean(srea_027$`Total industria`),4)))+
+geom_text(x=114,y=0.018,label=paste("SD=",round(sd(srea_027$`Total industria`),4)))+
+geom_density(fill="blue", alpha = .5) +
+labs(title="Índice de Producción Real de la Industria Manufacturera",
+x="Observaciones",y="Frecuecia" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+En esta gráfica se evidencia que esta serie no presenta una información distribuida normalmente, ni normal estándar tampoco (campana de Gauss). En las colas, se han presentado incrementos muy altos (datos atípicos) los cuales sesgan la distribución de los datos.
+
+# Desestacionalización de la Serie
+
+### Cálculo de la media móvil 12 meses
+```{r}
+N <- length(TotalIndustria)
+# Calcular media móvil 12 meses
+k <- 12
+tendencia <- matrix(data=NA, ncol=1, nrow=N)
+for(i in (k+1):N){
+  tendencia[i] <- mean(TotalIndustria[(i-k+1):i])
+}
+tendencia <-tendencia[-c(1:12)] #eliminar valores na
+TotalIndustria <- TotalIndustria[-c(1:12)] #se ajusta el tamaño de la serie
+N <- length(tendencia )
+```
+
+
+### Gráfica de la tendencia
+```{r}
+serieTendencia<- c(tendencia)
+serieTendencia <- as.data.frame(serieTendencia)
+ggplot(serieTendencia ) +
+geom_line(aes(y=serieTendencia,x=Mes[13:264]), colour= "blue",size=1) +
+ggtitle("Tendecia del Índice de Producción Manufacturero") +
+labs(x="Periodo de Tiempo",y="Values" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+### Cálcular componente estacional 12 meses
+```{r}
+# Cálcular componente estacional 12 meses
+TotalIndustriant <- TotalIndustria-tendencia
+N <- length(TotalIndustriant)
+estac1y <- matrix(data=NA, ncol=1, nrow=k)
+for(i in 1:k){
+  estac1y[i]=mean(TotalIndustriant[seq(from=i, to=floor(N/k)*k, by=k)])
+}
+estac <- matrix(data=estac1y, ncol=1, nrow=N)
+
+```
+
+
+
+**Desestacionalización de la serie.**
+Para desestacionalizar la serie, es necesario inicialmente quitar la tendencia de ésta. Para ello se realizará el cálculo de la media móvil con ventana 12. Posteriormente hallar los promedios de los datos de cada mes y restárselos a los datos de cada mes respectivamente después de haber quitado la tendencia de la serie. Esto nos dará como resultado el componente estacionario, el cual tendremos que sustraer de la serie original.
+```{r}
+SerieDesestacionalizada <- c(TotalIndustria-estac)
+```
+
+
+```{r}
+seriede<- c(SerieDesestacionalizada)
+serieDes <- as.data.frame(seriede)
+
+ggplot(serieDes) +
+geom_line(aes(y=seriede,x=Mes[13:264]), colour= "blue",size=1) +
+ggtitle("Índice de Producción Real de la Industria Manufacturera", subtitle="Serie Desestacionalizada") +
+labs(x="Periodo de Tiempo",y="Values" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+
+**Estabilización de varianza.**
+
+Con el fin de estabilizar la varianza de una serie $Z_{t}$ se elige la potencia $\lambda$ de tal forma que se cumpla la siguiente relación:
+
+$$
+\dfrac{\sigma_{t}}{\mu_{t}^{1-\lambda}}= \mbox{constante}, \qquad{\forall t=1,2,\dots, T}
+$$
+
+```{r}
+G<-12 #Número de observaciones por grupo
+H<-floor(N/G) #Número de grupos
+H
+n<-N-H*G #Número de observaciones que se eliminarán de la serie
+n
+```
+
+Se utilizan los valores de H y G para crear una matriz en la que los datos estén organizados por grupos, lo cual facilitará los cálculos hechos a continuación.
+```{r}
+SerieDesestacionalizada<-matrix(data=SerieDesestacionalizada,nrow=G,ncol=H)
+```
+
+Cada grupo tendrá una media dada por
+
+$$
+\bar{Z_{h}}=\dfrac{\sum_{g=1}^{G}Z_{h,g}}{G},
+$$
+
+```{r}
+mediasgrupos<-matrix(NA,nrow=H,ncol=1)#Creamos matriz vacía
+for(h in 1:H){
+  mediasgrupos[h]<-(sum(SerieDesestacionalizada[,h]))/G #Media de cada grupo
+}
+head(mediasgrupos)
+```
+
+
+
+
+
+
+
+
+La desviación estándar de cada grupo se calcula: 
+$$
+S_{h}=\sqrt{\dfrac{\sum_{g=1}^{G}\left(Z_{h,g}-\bar{Z}_{h}\right)^{2}}{G-1}}
+$$
+
+```{r}
+sdgrupos<-matrix(NA,nrow=H,ncol=1)#Creamos la matriz vacía
+for(h in 1:H){
+  sdgrupos[h]<-sqrt((sum((SerieDesestacionalizada[,h]-mediasgrupos[h])^2))/(G-1))#Desviación estándar de cada grupo
+}
+head(sdgrupos)
+```
+
+Para un $\lambda$ particular se define su coeficiente de variación 
+$$
+CV(\lambda)=\dfrac{SD(\lambda)}{M(\lambda)}, \mbox{ con } M(\lambda)=\dfrac{\sum_{h=1}^{H}\left(\dfrac{S_{h}}{\bar{Z}_{h}^{1-\lambda}}\right)}{H}, \quad SD(\lambda)=\sqrt{\dfrac{\sum_{h=1}^{H}\left[\left(\dfrac{S_{h}}{\bar{Z}_{h}^{1-\lambda}}\right)- M(\lambda)\right]^{2}}{H-1}}
+$$
+
+Se debe elegir la potencia que proporciona el mínimo coeficiente de variación.
+
+```{r}
+lambdas<-c(seq(from=-2,to=2,by=0.5))
+nlambdas<-length(lambdas)
+numerito<-matrix(data=NA,nrow=nlambdas,ncol=H)
+medialambdas<-matrix(data=NA,nrow=nlambdas,ncol=1)
+sdlambdas<-matrix(data=NA,nrow=nlambdas,ncol=1)
+cvlambdas<-matrix(data=NA,nrow=nlambdas,ncol=1)
+numerito[1,1]<-sdgrupos[1]/(mediasgrupos[1]^(1-lambdas[1]))
+for(h in 1:nlambdas){
+  for(n in 1:H){
+    numerito[h,n] <-sdgrupos[n]/(mediasgrupos[n]^(1-lambdas[h]))
+  }
+ 
+}
+for(n in 1:nlambdas){
+  medialambdas[n]<-sum(numerito[n,])/H
+  sdlambdas[n]<-sqrt((sum((numerito[n,]-medialambdas[n])^2))/(H-1))
+  cvlambdas[n]<-sdlambdas[n]/medialambdas[n]
+}
+cvlambdas
+CVlambdas<-cbind(lambdas,cvlambdas)
+CVlambdas
+```
+
+$$
+G(Z_{t})=\begin{cases}
+Z_{t}^{\lambda} & \lambda \ne 0 \\
+\ln(Z_{t}) & \lambda=0
+\end{cases}
+$$
+Se concluye que el lambda óptimo a aplicar a esta serie es el -1.5
+```{r}
+Transformación <-seriede^(-1.5) #Serie con la transformación correspondiente aplicada dependiendo del lambda con mínimo coeficiente de variación
+Transf <- matrix(data=Transformación,nrow=N,ncol=1,byrow=T)
+
+plot(Transf,type="l")
+```
+
+**Estabilización de nivel.**
+
+$$
+S(d)=min\lbrace S(j),j=0,1,2,3\rbrace\\
+S^2(j)=\dfrac{1}{N-j-1}\sum_{t=j+1}^N \begin{bmatrix} \triangledown^jG(Z_t)-\sum_{t=j+1}^N\dfrac{\triangledown^jG(Z_t)}{N-j}\end{bmatrix}^2
+$$
+
+Se realiza una función que calcule las varianzas para la serie con cada número de diferencias de 0 a 3. Posteriormente se comparan y se escoge el valor de la diferencia a utilizarse
+```{r}
+Resta<-function(seriecita,j){
+  N<-length(seriecita)
+  seriedif<-matrix(data=NA,nrow=(N-j),ncol=1)
+  for(i in 1:(N-j)){
+    seriedif[i]<-seriecita[(i+j)]-seriecita[i]
+  }
+  return(seriedif)
+}
+
+S2j<-c()
+S2j[1]<-sd(Transf)
+for(j in 1:3){
+  S2j[j+1] <-sqrt((1/(N-j-1))*sum((Resta(Transf,j)-sum((Resta(Transf,j))/(N-j)))^2))
+}
+S2j
+seriecita<-Resta(Transf,1)
+
+plot(seriecita,type="l")
+```
+
+Se concluye que la diferencia que se debe aplicar a esta serie es la de un rezago teniendo en cuenta que esta es la que tiene una menor varianza
+
+# Identificación del modelo
+
+**Donde se consideren diferentes modelos a partir de la ACF y la PACF muestral. Inclusión de criterios de TotalIndustriaormación para la identificación es bien valorada.**
+
+Con la finalidad de resumir los procesos repetitivos se crean unas funciones en este proyecto y se importan por medio del comando $source$ 
+
+## ACF muestral
+
+La estimación de las autocovarianzas para muestra es la siguiente:
+
+$$
+\hat\gamma_0=\dfrac{\sum^N_{t=1}(\tilde{Z}_t-\bar{Z})^2}{N-1}\\
+\hat\gamma_k=\dfrac{\sum^N_{t=1}(\tilde{Z}_t-\bar{Z})(\tilde{Z}_{t+k}-\bar{Z})}{N-1}
+$$
+Autocorrelaciones:
+$$
+\hat\rho_k=\dfrac{\hat\gamma_k}{\hat\gamma_0}
+$$
+
+```{r}
+source("Funciones/ACFfun0.R")
+ACF <- ACFfun0(seriecita, N/4)
+head(ACF)
+tail(ACF)
+#acf(seriecita,plot = FALSE) # comando directo
+```
+
+```{r}
+cuantil <- qnorm(0.975,mean=0,sd=1)
+cuantil <- round(cuantil,2) 
+lim_inf <- -cuantil*sqrt(1/N)
+lim_sup <- cuantil*sqrt(1/N)
+```
+
+```{r}
+y <- 1:length(ACF)
+ACF1 <- as.data.frame(cbind(y,ACF))
+ggplot(ACF1) +
+geom_col(aes(y=ACF,x=y), colour= "blue",size=0.4) +
+geom_hline(aes(yintercept=lim_sup),linetype="dashed",color="black")+
+geom_hline(aes(yintercept=lim_inf),linetype="dashed",color="black")+
+  ggtitle("                            ACF Muestral") +
+labs(x="Periodo de Tiempo",y="Values" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+## PACF Muestral
+
+Autocorrelaciones parciales:
+
+$$
+\hat\phi_{kk}=\dfrac{\begin{vmatrix}
+1 & \hat\rho_1 & \hat\rho_2 & \cdots & \hat\rho_{k-2}& \hat\rho_1\\
+\hat\rho_1 & 1 & \hat\rho_1 & \cdots & \hat\rho_{k-3} & \hat\rho_2\\
+\hat\rho_2 & \hat\rho_1 & 1 & \cdots & \hat\rho_{k-4} & \hat\rho_3\\
+\vdots & \vdots & \vdots & \ddots& \vdots & \vdots\\
+\vdots & \vdots & \vdots & \vdots & \ddots & \vdots\\
+\hat\rho_{k-1} & \hat\rho_{k-2} & \hat\rho_{k-3} & \cdots & \hat\rho_{1}& \hat\rho_k\\
+\end{vmatrix}}{\begin{vmatrix}
+1 & \hat\rho_1 & \hat\rho_2 & \cdots & \hat\rho_{k-2}& \hat\rho_{k-1}\\
+\hat\rho_1 & 1 & \hat\rho_1 & \cdots & \hat\rho_{k-3} & \hat\rho_{k-2}\\
+\hat\rho_2 & \hat\rho_1 & 1 & \cdots & \hat\rho_{k-4} & \hat\rho_{k-3}\\
+\vdots & \vdots & \vdots & \ddots& \vdots & \vdots\\
+\vdots & \vdots & \vdots & \vdots & \ddots & \vdots\\
+\hat\rho_{k-1} & \hat\rho_{k-2} & \hat\rho_{k-3} & \cdots & \hat\rho_{1}& 1\\
+\end{vmatrix}}
+$$
+
+
+
+```{r}
+source("Funciones/PACFfun.R")
+```
+
+
+```{r}
+PACF <- PACFfun(ACF,N/4)
+#pacf(seriecita,plot = TRUE) #comprobacion grafica comando directo
+```
+
+
+```{r}
+y <- 1:length(PACF)
+PACF1 <- as.data.frame(cbind(y,PACF))
+ggplot(PACF1) +
+geom_col(aes(y=PACF,x=y), colour= "blue",size=0.4) +
+geom_hline(aes(yintercept=lim_sup),linetype="dashed",color="black")+
+geom_hline(aes(yintercept=lim_inf),linetype="dashed",color="black")+
+  ggtitle("                          PACF Muestral") +
+labs(x="Periodo de Tiempo",y="Values" )+
+theme_economist()+theme(axis.text = element_text(angle=0))
+```
+
+## Identificación del Orden P de la serie
+```{r}
+H <- length(PACF)
+
+valor_p <- cbind()
+for(p in 1:H){
+  for(i in (p+1):H){
+    if(PACF[p]>lim_inf&PACF[p]<lim_sup){
+      valor_p[i] <- "dentro del intervalo"
+    }
+    else{
+      valor_p[i] <- "fuera del intervalo"
+    }
+  }
+}
+print(cbind(valor_p[1:13])) #se imprime hasta el valor 13 ya que de ahi en adelante todos los p estan dentro del intervalo
+
+```
+
+## Identificación del Orden q de la serie
+
+```{r}
+d <- 1
+cota1 <- c()
+for (q in 1:(H-4)) {
+  cota1[q]<- 2* sqrt((1+2*sum(ACF[1:q])^2)/(N-d))
+}
+cota1
+```
+
+
+```{r}
+head(abs(ACF)>cota1[1])
+#abs(ACF)>cota1[2]
+#abs(ACF)>cota1[4]
+#abs(ACF)>cota1[20]
+```
+Se realiza la verificación de que si los valores de las autocorrelaciones en valor absoluto son mayores a los valores de la cota, se puede concluir que el único valor que cumple con este requisito es $\rho_1$
+
+
+# Estimación y verificación de los supuestos
+
+**Identifique en esta sección cuál es el modelo seleccionado)**
+
+
+```{r}
+p <- 11
+d <- 0
+q <- 1
+
+
+modelillo <- arima(seriecita, c(p,d,q))
+residualcitos <- modelillo$residuals
+```
+
+```{r}
+auto.arima(seriecita)# comando directo
+```
+
+
+
+## Verificación del supuesto 1: Media cero.
+
+
+$$
+m(\hat{a})=\dfrac{\sum_{t=t'}^{T}\hat{a}_{t}}{T-d-p}\\
+\hat{\sigma}_{a}=\sqrt{\dfrac{\sum_{t=t'}^{T}(\hat{a}_{t}-m(\hat{a}))^2}{T-d-p-q}} \quad \mbox{donde } t'=d+p+1
+$$
+
+Si $H_{0}:$ la media de $\lbrace a_{t}\rbrace$ es igual a 0\\
+$H_{a}:$ Violación del supuesto de media cero
+
+$$
+\displaystyle\left\lvert \dfrac{\sqrt{T-d-p}\quad m(\hat{a})}{\hat{\sigma}_{a}}\right\rvert <2 \implies \mbox{No existe evidencia para rechazar }  H_{0}
+$$
+
+El rechazo de $H_{0}$ implica que existe una parte determinística en $\lbrace \hat{a}_{t} \rbrace$  que no se ha sido considerada en el modelo y se requiere de la inclusión de una tendencia determinista $\theta_{0}$.
+El valor inicial para dicha tendencia determinista está dado por $m(\hat{a}_{t})$.
+En algunas ocasiones, antes de incluir el parámetro $\theta_0$ podría considerarse la inclusión de un término autoregresivo o una diferencia adicional.
+
+```{r}
+
+TResiduales <- length(residualcitos)
+TResiduales
+
+tprima <- d+p+1
+tprima
+
+#MEDIA ESTIMADA DE A
+
+mediaresiduales <- (sum(residualcitos[(tprima):TResiduales]))/(TResiduales-d-p)
+mediaresiduales
+
+#DESVIACIÓN ESTANDAR ESTIMADA DE A
+
+desvestresiduales <- sqrt((t(residualcitos-mediaresiduales)%*%(residualcitos-mediaresiduales))/(TResiduales-d-p-q))
+desvestresiduales
+
+#PRUEBA HIPOTESIS
+
+if(abs((sqrt(TResiduales-d-p)*mediaresiduales)/desvestresiduales) < cuantil){print("No existe evidencia para rechazar la hipótesis nula: de que los residuales tienen media cero ")} else {"Existe evidencia para rechazar la hipótesis nula: de que los residuales tienen media cero"}
+
+```
+
+Verificación del supuesto 2: Varianza estable
+
+```{r}
+plot(residualcitos, main="Residualcitos", xlab="Tiempo", ylab="residualcitos",col="3")
+```
+
+Como se puede evidenciar en la grafica hasta cierto punto los resiudales mantienen una varinza estable, sin embargo se observa en los ultimos datos que ha ocurrido un choque en la seria. Esto se puede explicar por la llegada de la pandemia la cual afectó en grandes proporciones el sector productivo del país
+
+
+## Verificación supuesto 3: Mutuamente independientes
+
+
+
+Calculo de la ACF de los residuales 
+```{r}
+Rho_residuales <- ACFfun0(residualcitos,(TResiduales/4))
+```
+
+*Estadístico Q de Box- Pierce (1970) *
+$$
+Q=(N-d-1)\sum_{k=1}^{[\dfrac{N}{4}]}(\hat{\rho_k}(\hat{a}))^2
+$$
+
+```{r}
+Q1 <- (TResiduales-d-1)*sum(Rho_residuales^2)
+Q1
+```
+
+*Estadístico Q’ de Ljung-Box (1978)*
+$$
+Q=(N-d-1)*(N-d+1)\sum_{k=1}^{[\dfrac{N}{4}]}\dfrac{\hat{\rho_k}(\hat{a}))^2}{N-d+1-k}
+$$
+
+```{r}
+for(i in 1:(TResiduales/4)){
+  Q2 <- (TResiduales-d-1)*(TResiduales-d+1)*(sum(Rho_residuales**2))/(TResiduales-d-1-i)
+}
+
+Q2
+```
+$H_0:$ los residuales estimados $\hat{a}$ˆ son ruido blanco,.
+$H_a:$ los residuales estimados $\hat{a}$ˆ no son ruido blanco.
+
+```{r}
+k <- (TResiduales/4)
+ValorCritico <- qchisq(p = 0.95,df = k-1,FALSE)
+ValorCritico
+if( ValorCritico >Q2 ) {
+  "no se rechaza la hipotesis nula"
+} else {
+  "se rechaza la hipotesis nula"
+}
+
+```
+por lo que se concluye que los datos no son independientes
+
+
+
+## **PUNTO 5: Cálculo del estadístico Jarque-Bera **
+$$
+H_0= Los\ datos\ se\ distribuyen\ como\ una\ normal
+$$
+$$
+H_a= Los\ datos\ no\ se\ distribuyen\ como\ una\ normal
+$$
+Se construirá el estadistico parte por parte a continuacion:
+
+
+**Fórmula de asimetría**
+$$
+S=\frac{\hat\mu_3}{\hat\sigma^3}=\frac{\frac{1}{n}\sum_{i=n}^n(x_i-\bar {x})^3}{(\frac{1}{n}\sum_{i=1}^n(x_i-\bar {x})^2)^{3/2}}
+$$
+**Cálculo de la asimetría**
+```{r}
+#Para confirmar el Jarque-Bera 
+calcular <- c(residualcitos)#Se debe escoger la distribución= "Serie","zt","xt"
+n <- length(calcular)
+n
+xbarra <- mean(calcular)
+xbarra
+arriba <- (1/n)*sum((calcular-xbarra)^3)
+abajo <- ((1/n)*(sum((calcular-xbarra)^2)))^(3/2)
+S <- arriba/abajo
+S
+```
+
+
+**Confirmación con comando directo**
+```{r}
+#install.packages("moments")
+library(moments)
+skewness(calcular)
+
+```
+**Fórmula de la kurtosis**
+$$
+K=\frac{\hat\mu_4}{\hat\sigma^4}=\frac{\frac{1}{n}\sum_{i=n}^n(x_i-\bar {x})^4}{(\frac{1}{n}\sum_{i=1}^n(x_i-\bar {x})^2)^{2}}
+$$
+**Construcción de la kurtosis**
+```{r}
+arriba2 <- (1/n)*sum((calcular-xbarra)^4)
+abajo2 <- ((1/n)*(sum((calcular-xbarra)^2)))^(2)
+K <- arriba2/abajo2
+K
+```
+
+
+**Confirmación con comando directo**
+```{r}
+kurtosis(calcular)
+```
+**Jarque-Bera**
+$$
+JB= \frac{n}{6}(S^2+\frac{1}{4}(K-3)^2)\\
+$$
+Donde\
+n: Grados  de  libertad\
+S: Asimetría\
+K: Kurtosis
+```{r}
+Jb <- (n/6)*(S^2+1/4*((K-3)^2))
+Jb
+```
+
+
+**Condicional**
+
+**Crear un "if" que indique si se trata de una distribución normal o no**
+```{r}
+ValorCritico <- qchisq(p = 0.95,df = 2,FALSE)
+if(Jb < ValorCritico ) {
+  "Presenta una distribución normal"
+} else {
+  "No presenta una distribución normal"
+}
+```
+**Confirmación con comando directo**
+```{r}
+
+jarque.test(calcular)
+```
+
+
+## Verificación supuesto 5: Observaciones aberrantes
+
+```{r}
+datos_aberrantes <- function(data){
+  N <- length(data)
+  mediadata <- mean(data)
+  desvestdata <- sd(data)
+  lim_superior <- mediadata+3*desvestdata
+  lim_inferior <- mediadata-3*desvestdata
+  anomalas <- c()
+  for(i in 1:N){
+    if(data[i]<lim_superior & data[i]>lim_inferior){
+      anomalas[i]=NA
+    } else {anomalas[i]=data[i]}
+  }
+  anomalas <- na.omit(anomalas)
+  print(length(anomalas))
+}
+datos_aberrantes(residualcitos)
+```
+
+
+Verificación del supuesto 6: Parsimonia
+
+```{r}
+Parsimonia <- function(coef,var){
+  desv <- sqrt(var)
+  vec <- coef
+  for(i in 1:length(coef)){
+    lim_superior <- coef[i]+2*desv[i]
+    lim_inferior <- coef[i]-2*desv[i]
+    if(lim_superior>0 & lim_inferior>0 || lim_superior<0 & lim_inferior<0){vec[i]="Parametro siginficativo"
+    } else {vec[i]="Parametro no siginficativo"}
+  }
+  print("Test de verificación parsimonia")
+  print(vec)
+}
+
+coefficientes <- modelillo$coef
+varianza <- diag(modelillo$var.coef)
+Parsimonia(coef=coefficientes,var=varianza)
+
+
+```
+
+De acuerdo con la prueba todos los parametros no son significativos, por lo que se concluye que no es un modelo parsimonioso
+
+# Uso del modelo
+## Pronóstico
+
+```{r}
+forecast(modelillo, h=3)
+plot(forecast(object = modelillo,h = 3))
+```
+
+
+**Referencias.**
+
+Banco de la República (BanRep). Índice de producción real de la industria manufacturera colombiana. Tomado de: https://www.banrep.gov.co/es/estadisticas/indice-produccion-industrial-ipp
+
+Departamento Administrativo nacional de Estadística  (DANE), Muestra Mensual Manufacturera (Base promedio mes 1990 = 100, Base promedio mes 2014 = 100 y Base promedio mes 2018 = 100) y cálculos del Banco de la República, SGPMIE, Cuentas Financieras.
+
+Guerrero, V. (2003) Análisis Estadístico de Series de Tiempo Económicas. pp. 107-165
+
+Misas, M. (2022). Diapositivas de clase.
+
